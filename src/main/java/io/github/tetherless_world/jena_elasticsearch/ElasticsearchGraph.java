@@ -6,7 +6,6 @@ import org.apache.jena.util.iterator.ExtendedIterator;
 
 public class ElasticsearchGraph extends GraphBase {
 
-
     protected ExtendedIterator<Triple> graphBaseFind(Triple triple) {
         throw new UnsupportedOperationException();
     }
