@@ -63,11 +63,9 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             GetIndexResponse response = this.client.indices().get(request, RequestOptions.DEFAULT);
             this.graphNames = new LinkedHashSet<>();
             this.graphNames.addAll(Arrays.asList(response.getIndices()));
-            System.out.println("ER 2");
         } catch (ElasticsearchStatusException e) {
             // no indices exist yet
             // Elasticsearch throws an exception when requesting to get all indices but none exist
-            System.out.println("ER 3");
             this.graphNames = new LinkedHashSet<>();
         }
 
