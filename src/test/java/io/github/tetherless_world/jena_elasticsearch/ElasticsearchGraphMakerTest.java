@@ -4,30 +4,37 @@ import org.apache.http.HttpHost;
 import org.apache.jena.graph.GraphMaker;
 import org.apache.jena.graph.test.AbstractTestGraphMaker;
 
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.Random;
-
 public class ElasticsearchGraphMakerTest extends AbstractTestGraphMaker {
+    private GraphMaker gf;
 
     public ElasticsearchGraphMakerTest(String name) {
         super(name);
     }
 
+    @Override
     public GraphMaker getGraphMaker() {
         ElasticsearchGraphMaker graphMaker;
         try {
             // Initialize the GraphMaker
-            graphMaker = new ElasticsearchGraphMaker(
-                    new HttpHost("localhost",9200, "http")
+            this.gf = new ElasticsearchGraphMaker(
+                    new HttpHost("localhost", 9200, "http")
             );
 
             // Create and return the graph
-            return graphMaker;
+            return this.gf;
         } catch (Exception e) {
             // Error reading ES index settings
             e.printStackTrace();
             return null;
         }
+    }
+
+    @Override
+    public void tearDown() {
+        // Remove all graphs from Elasticsearch (and thus all indices)
+        this.gf.removeGraph("_all");
+
+        // Close the GraphMaker
+        super.tearDown();
     }
 }
