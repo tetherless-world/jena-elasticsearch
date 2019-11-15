@@ -6,6 +6,7 @@ import org.apache.jena.graph.impl.BaseGraphMaker;
 import org.apache.jena.shared.AlreadyExistsException;
 import org.apache.jena.shared.DoesNotExistException;
 import org.apache.jena.util.iterator.ExtendedIterator;
+import org.apache.jena.util.iterator.WrappedIterator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.RequestOptions;
@@ -68,8 +69,6 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             // Elasticsearch throws an exception when requesting to get all indices but none exist
             this.graphNames = new LinkedHashSet<>();
         }
-
-        System.out.println("ER 1");
     }
 
     /**
@@ -85,34 +84,34 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
 
         // Elasticsearch only allows lowercase index names
-        String lowerName = name.toLowerCase();
-        if (lowerName.startsWith("_")) {
+        String validIndexName = safeIndexName(name);
+        if (validIndexName.startsWith("_")) {
             logger.error("Index name cannot begin with underscore");
             return null;
         }
 
-        if (this.graphNames.contains(lowerName)) {
+        if (this.graphNames.contains(validIndexName)) {
             // there is already a graph with this name
             if (strict) {
                 logger.error("Graph already exists");
-                throw new AlreadyExistsException("Graph '" + lowerName + "' already exists");
+                throw new AlreadyExistsException("Graph '" + validIndexName + "' already exists");
             } else {
                 // return the associated graph
-                return new ElasticsearchGraph(this.client, lowerName);
+                return new ElasticsearchGraph(this.client, validIndexName);
             }
         } else {
             try {
                 // there is no graph with this name yet
                 // create the index for this graph
-                CreateIndexRequest request = new CreateIndexRequest(lowerName);
+                CreateIndexRequest request = new CreateIndexRequest(validIndexName);
                 request.source(this.elasticsearchIndexSettings, XContentType.JSON);
                 this.client.indices().create(request, RequestOptions.DEFAULT);
 
-                this.graphNames.add(lowerName);
-                logger.info("Created graph with name '" + lowerName + "'");
+                this.graphNames.add(validIndexName);
+                logger.info("Created graph with name '" + validIndexName + "'");
 
                 // return the graph object
-                return new ElasticsearchGraph(this.client, lowerName);
+                return new ElasticsearchGraph(this.client, validIndexName);
             } catch (IOException e) {
                 logger.error("Could not create index");
             }
@@ -133,35 +132,35 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
 
         // Elasticsearch only allows lowercase index names
-        String lowerName = name.toLowerCase();
-        if (lowerName.startsWith("_")) {
+        String validIndexName = safeIndexName(name);
+        if (validIndexName.startsWith("_")) {
             logger.error("Index name cannot begin with underscore");
             return null;
         }
 
-        if (this.graphNames.contains(lowerName)) {
+        if (this.graphNames.contains(validIndexName)) {
             // there is already a graph with this name
             // return the associated graph
-            return new ElasticsearchGraph(this.client, lowerName);
+            return new ElasticsearchGraph(this.client, validIndexName);
         } else {
             // there is no graph with this name yet
             if (strict) {
                 // throw an error instead of creating the graph
-                logger.error("Graph '" + lowerName + "' does not exist");
-                throw new DoesNotExistException("Graph '" + lowerName + "' does not exist");
+                logger.error("Graph '" + validIndexName + "' does not exist");
+                throw new DoesNotExistException("Graph '" + validIndexName + "' does not exist");
             } else {
                 // there is no graph with this name yet
                 // create the index for this graph
                 try {
-                    CreateIndexRequest request = new CreateIndexRequest(lowerName);
+                    CreateIndexRequest request = new CreateIndexRequest(validIndexName);
                     request.source(this.elasticsearchIndexSettings, XContentType.JSON);
                     this.client.indices().create(request, RequestOptions.DEFAULT);
 
-                    this.graphNames.add(lowerName);
-                    logger.info("Created graph with name '" + lowerName + "'");
+                    this.graphNames.add(validIndexName);
+                    logger.info("Created graph with name '" + validIndexName + "'");
 
                     // return the graph object
-                    return new ElasticsearchGraph(this.client, lowerName);
+                    return new ElasticsearchGraph(this.client, validIndexName);
                 } catch (IOException e) {
                     logger.error("Could not create index");
                 }
@@ -178,13 +177,13 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
     @Override
     public void removeGraph(String name) {
         Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-        String lowerName = name.toLowerCase();
+        String validIndexName = name.equals("_all") ? "_all" : safeIndexName(name);
 
         try {
-            DeleteIndexRequest request = new DeleteIndexRequest(lowerName);
+            DeleteIndexRequest request = new DeleteIndexRequest(validIndexName);
             this.client.indices().delete(request, RequestOptions.DEFAULT);
-            this.graphNames.remove(lowerName);
-            logger.info("Graph '" + lowerName + "' removed");
+            this.graphNames.remove(validIndexName);
+            logger.info("Graph '" + validIndexName + "' removed");
         } catch (IOException e) {
             logger.error("Could not remove graph '" + name + "'");
         }
@@ -193,7 +192,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
     @Override
     public boolean hasGraph(String name) {
         Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-        return this.graphNames.contains(name.toLowerCase());
+        return this.graphNames.contains(safeIndexName(name));
     }
 
     @Override
@@ -204,8 +203,38 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
     @Override
     public ExtendedIterator<String> listGraphs() {
         Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-        //this.graphNames.iterator();
 
-        return null;
+        ExtendedIterator<String> iter = WrappedIterator.create(this.graphNames.iterator());
+        return iter;
+    }
+
+    /**
+     * Given a string, transform it so that it can be used as an index name in Elasticsearch. I.e.:
+     * - Cannot begin with _, -, or +
+     * - Cannot contain characters [ , \", *, \\, <, |, ,, >, /, ?, :, #]
+     * - Cannot exceed 255 characters
+     * - Cannot be '.' or '..'
+     * - Must contain all lowercase characters
+     *
+     * @param graphName the string to transform into a safe index name
+     * @return
+     */
+    private String safeIndexName(String graphName) {
+        if (graphName.matches("[_+-].*")) {
+            // i.e. if graphName starts with _, -, or +
+            graphName = graphName.substring(1);
+        }
+
+        // Remove all illegal characters
+        graphName = graphName.replaceAll("[ \"\\*<|,>/?:#]", "");
+        if (graphName.length() > 255) {
+            graphName = graphName.substring(0, 254);
+        }
+
+        if (graphName.length() == 0 || graphName.equals(".") || graphName.equals("..")) {
+            throw new IllegalArgumentException();
+        }
+
+        return graphName.toLowerCase();
     }
 }
