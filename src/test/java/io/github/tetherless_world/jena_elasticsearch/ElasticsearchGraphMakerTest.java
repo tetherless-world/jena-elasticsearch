@@ -13,7 +13,6 @@ public class ElasticsearchGraphMakerTest extends AbstractTestGraphMaker {
 
     @Override
     public GraphMaker getGraphMaker() {
-        ElasticsearchGraphMaker graphMaker;
         try {
             // Initialize the GraphMaker
             this.gf = new ElasticsearchGraphMaker(

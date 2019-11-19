@@ -1,5 +1,6 @@
 package io.github.tetherless_world.jena_elasticsearch;
 
+import org.apache.commons.codec.binary.Base32;
 import org.apache.http.HttpHost;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.impl.BaseGraphMaker;
@@ -23,16 +24,18 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ElasticsearchGraphMaker extends BaseGraphMaker {
-    public Set<String> graphNames;
-    public RestHighLevelClient client;
-    public String elasticsearchIndexSettings;
-    public final String settingsPath = "elasticsearchIndexSettings.json";
+    private Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
+    private Set<String> graphNames;
+    private RestHighLevelClient client;
+    private String elasticsearchIndexSettings;
+    private final static String settingsPath = "elasticsearchIndexSettings.json";
 
     /**
      * Constructor for ElasticsearchGraphMaker
@@ -40,9 +43,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      * @param httpHosts Elasticsearch nodes in the cluster
      * @throws IOException
      */
-    public ElasticsearchGraphMaker(HttpHost... httpHosts) throws IOException, URISyntaxException {
-        Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-
+    public ElasticsearchGraphMaker(HttpHost... httpHosts) throws IOException {
         // Read the Elasticsearch index settings from the settings resource file
         InputStream inputStream = getClass().getResourceAsStream(this.settingsPath);
         StringBuilder resultStringBuilder = new StringBuilder();
@@ -62,12 +63,12 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
 
         try {
             GetIndexResponse response = this.client.indices().get(request, RequestOptions.DEFAULT);
-            this.graphNames = new LinkedHashSet<>();
+            this.graphNames = new LinkedHashSet<String>();
             this.graphNames.addAll(Arrays.asList(response.getIndices()));
         } catch (ElasticsearchStatusException e) {
             // no indices exist yet
             // Elasticsearch throws an exception when requesting to get all indices but none exist
-            this.graphNames = new LinkedHashSet<>();
+            this.graphNames = new LinkedHashSet<String>();
         }
     }
 
@@ -81,10 +82,8 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      */
     @Override
     public Graph createGraph(String name, boolean strict) throws AlreadyExistsException {
-        Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-
-        // Elasticsearch only allows lowercase index names
-        String validIndexName = safeIndexName(name);
+        // Encode the given graph name into a name safe for Elasticsearch
+        String validIndexName = encodeIndexName(name);
         if (validIndexName.startsWith("_")) {
             logger.error("Index name cannot begin with underscore");
             return null;
@@ -93,7 +92,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         if (this.graphNames.contains(validIndexName)) {
             // there is already a graph with this name
             if (strict) {
-                logger.error("Graph already exists");
+                logger.error("Cannot create graph '{}'; already exists", validIndexName);
                 throw new AlreadyExistsException("Graph '" + validIndexName + "' already exists");
             } else {
                 // return the associated graph
@@ -108,12 +107,12 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 this.client.indices().create(request, RequestOptions.DEFAULT);
 
                 this.graphNames.add(validIndexName);
-                logger.info("Created graph with name '" + validIndexName + "'");
+                logger.info("Created graph with name '{}'", validIndexName);
 
                 // return the graph object
                 return new ElasticsearchGraph(this.client, validIndexName);
-            } catch (IOException e) {
-                logger.error("Could not create index");
+            } catch (Exception e) {
+                logger.error("Could not create index '{}'", validIndexName, e);
             }
         }
         return null;
@@ -129,10 +128,8 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      */
     @Override
     public Graph openGraph(String name, boolean strict) {
-        Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-
         // Elasticsearch only allows lowercase index names
-        String validIndexName = safeIndexName(name);
+        String validIndexName = encodeIndexName(name);
         if (validIndexName.startsWith("_")) {
             logger.error("Index name cannot begin with underscore");
             return null;
@@ -146,7 +143,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             // there is no graph with this name yet
             if (strict) {
                 // throw an error instead of creating the graph
-                logger.error("Graph '" + validIndexName + "' does not exist");
+                logger.error("Cannot open graph '{}'; does not exist", validIndexName);
                 throw new DoesNotExistException("Graph '" + validIndexName + "' does not exist");
             } else {
                 // there is no graph with this name yet
@@ -157,12 +154,12 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                     this.client.indices().create(request, RequestOptions.DEFAULT);
 
                     this.graphNames.add(validIndexName);
-                    logger.info("Created graph with name '" + validIndexName + "'");
+                    logger.info("Created graph with name '{}'", validIndexName);
 
                     // return the graph object
                     return new ElasticsearchGraph(this.client, validIndexName);
                 } catch (IOException e) {
-                    logger.error("Could not create index");
+                    logger.error("Could not create index '{}'", validIndexName, e);
                 }
             }
         }
@@ -176,8 +173,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      */
     @Override
     public void removeGraph(String name) {
-        Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-        String validIndexName = name.equals("_all") ? "_all" : safeIndexName(name);
+        String validIndexName = encodeIndexName(name);
 
         try {
             DeleteIndexRequest request = new DeleteIndexRequest(validIndexName);
@@ -185,14 +181,13 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             this.graphNames.remove(validIndexName);
             logger.info("Graph '" + validIndexName + "' removed");
         } catch (IOException e) {
-            logger.error("Could not remove graph '" + name + "'");
+            logger.error("Could not remove graph '{}'", name, e);
         }
     }
 
     @Override
     public boolean hasGraph(String name) {
-        Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-        return this.graphNames.contains(safeIndexName(name));
+        return this.graphNames.contains(encodeIndexName(name));
     }
 
     @Override
@@ -202,9 +197,11 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
 
     @Override
     public ExtendedIterator<String> listGraphs() {
-        Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
+        // Make a list of the decoded index names (i.e. a list of graph names)
+        List<String> graphNamesList = this.graphNames.stream().map(this::decodeIndexName).collect(Collectors.toList());
 
-        ExtendedIterator<String> iter = WrappedIterator.create(this.graphNames.iterator());
+        // Construct and return the iterator over these values
+        ExtendedIterator<String> iter = WrappedIterator.create(graphNamesList.iterator());
         return iter;
     }
 
@@ -219,22 +216,22 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      * @param graphName the string to transform into a safe index name
      * @return
      */
-    private String safeIndexName(String graphName) {
-        if (graphName.matches("[_+-].*")) {
-            // i.e. if graphName starts with _, -, or +
-            graphName = graphName.substring(1);
+    private String encodeIndexName(String graphName) {
+        if (graphName.equals("_all")) {
+            return graphName;
         }
-
-        // Remove all illegal characters
-        graphName = graphName.replaceAll("[ \"\\*<|,>/?:#]", "");
-        if (graphName.length() > 255) {
-            graphName = graphName.substring(0, 254);
-        }
-
-        if (graphName.length() == 0 || graphName.equals(".") || graphName.equals("..")) {
+        String encodedName = (new Base32()).encodeAsString(graphName.getBytes()).replaceAll("=", "_").toLowerCase();
+        if (encodedName.length() > 255) {
+            // TODO: Implement better checking for graph names that are too long?
             throw new IllegalArgumentException();
         }
+        return encodedName;
+    }
 
-        return graphName.toLowerCase();
+    private String decodeIndexName(String indexName) {
+        if (indexName.equals("_all")) {
+            return indexName;
+        }
+        return new String((new Base32()).decode(indexName.replaceAll("_", "=").toUpperCase()));
     }
 }
