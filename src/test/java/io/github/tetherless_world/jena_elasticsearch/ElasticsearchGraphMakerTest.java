@@ -3,9 +3,12 @@ package io.github.tetherless_world.jena_elasticsearch;
 import org.apache.http.HttpHost;
 import org.apache.jena.graph.GraphMaker;
 import org.apache.jena.graph.test.AbstractTestGraphMaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class ElasticsearchGraphMakerTest extends AbstractTestGraphMaker {
     private GraphMaker gf;
+    private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMakerTest.class);
 
     public ElasticsearchGraphMakerTest(String name) {
         super(name);
@@ -19,12 +22,12 @@ public class ElasticsearchGraphMakerTest extends AbstractTestGraphMaker {
                     new HttpHost("localhost", 9200, "http")
             );
 
-            // Create and return the graph
+            // Create and return the graphmaker
             return this.gf;
         } catch (Exception e) {
             // Error reading ES index settings
-            e.printStackTrace();
-            return null;
+            this.logger.error("Could not contact Elasticsearch instance");
+            throw new RuntimeException(e);
         }
     }
 

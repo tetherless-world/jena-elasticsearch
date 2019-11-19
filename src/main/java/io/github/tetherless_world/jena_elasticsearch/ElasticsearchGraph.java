@@ -13,7 +13,10 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -27,9 +30,9 @@ import java.util.List;
 import java.util.Map;
 
 public class ElasticsearchGraph extends GraphBase {
-    private Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
-    private RestHighLevelClient client;
-    private String name;
+    private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
+    private final RestHighLevelClient client;
+    private final String name;
 
     public ElasticsearchGraph(RestHighLevelClient aClient, String aName) {
         this.client = aClient;
@@ -60,7 +63,6 @@ public class ElasticsearchGraph extends GraphBase {
             this.client.index(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             logger.error("Error indexing triple: {}", t, e);
-            e.printStackTrace();
         }
     }
 
@@ -73,8 +75,7 @@ public class ElasticsearchGraph extends GraphBase {
             request.setQuery(queryBuilder);
             this.client.deleteByQuery(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
-            logger.error("Error deleting triple: {}", t);
-            e.printStackTrace();
+            logger.error("Error deleting triple: {}", t, e);
         }
     }
 
@@ -89,17 +90,19 @@ public class ElasticsearchGraph extends GraphBase {
 
         try {
             SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
-            List<Triple> triple_results = new ArrayList<>();
+            List<Triple> tripleResults = new ArrayList<>();
+            logger.debug("Called graphBaseFind for triple {}", triple);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
+                logger.debug("Hit: {}", hit.getSourceAsMap());
                 Map<String, Object> fields = hit.getSourceAsMap();
                 String s = (String) fields.get("subject");
                 String p = (String) fields.get("predicate");
                 String o = (String) fields.get("object");
 
-                triple_results.add(Triple.create(createNode(s), createNode(p), createNode(o)));
+                tripleResults.add(Triple.create(createNode(s), createNode(p), createNode(o)));
             }
 
-            return WrappedIterator.create(triple_results.iterator());
+            return WrappedIterator.create(tripleResults.iterator());
         } catch (IOException e) {
             logger.error("Search for triple {} failed", triple, e);
         }
@@ -118,18 +121,15 @@ public class ElasticsearchGraph extends GraphBase {
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
 
         if (!triple.getSubject().equals(Node.ANY)) {
-            MatchQueryBuilder matchSubjectQueryBuilder = new MatchQueryBuilder("subject", getNodeContent(triple.getSubject()));
-            matchSubjectQueryBuilder.operator(Operator.AND);
+            TermQueryBuilder matchSubjectQueryBuilder = new TermQueryBuilder("subject", getNodeContent(triple.getSubject()));
             queryBuilder = queryBuilder.must(matchSubjectQueryBuilder);
         }
         if (!triple.getPredicate().equals(Node.ANY)) {
-            MatchQueryBuilder matchPredicateQueryBuilder = new MatchQueryBuilder("predicate", getNodeContent(triple.getPredicate()));
-            matchPredicateQueryBuilder.operator(Operator.AND);
+            TermQueryBuilder matchPredicateQueryBuilder = new TermQueryBuilder("predicate", getNodeContent(triple.getPredicate()));
             queryBuilder = queryBuilder.must(matchPredicateQueryBuilder);
         }
         if (!triple.getObject().equals(Node.ANY)) {
-            MatchQueryBuilder matchObjectQueryBuilder = new MatchQueryBuilder("object", getNodeContent(triple.getObject()));
-            matchObjectQueryBuilder.operator(Operator.AND);
+            TermQueryBuilder matchObjectQueryBuilder = new TermQueryBuilder("object", getNodeContent(triple.getObject()));
             queryBuilder = queryBuilder.must(matchObjectQueryBuilder);
         }
 
@@ -143,6 +143,7 @@ public class ElasticsearchGraph extends GraphBase {
 
     /**
      * Returns the number of triples in this graph
+     *
      * @return the number of triples in this graph
      */
     @Override
@@ -157,9 +158,8 @@ public class ElasticsearchGraph extends GraphBase {
             return (int) response.getCount();
         } catch (IOException e) {
             logger.error("Could not retrieve size of graph '{}'", this.name, e);
+            throw new RuntimeException(e);
         }
-        // TODO: Is this an appropriate default return value??
-        return -1;
     }
 
     /**
@@ -168,7 +168,7 @@ public class ElasticsearchGraph extends GraphBase {
      * @param s the value of the node
      * @return a node corresponding to s
      */
-    private Node createNode(String s) {
+    private static Node createNode(String s) {
         if (s.startsWith("_:")) {
             return NodeFactory.createBlankNode(s);
         }

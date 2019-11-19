@@ -31,10 +31,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ElasticsearchGraphMaker extends BaseGraphMaker {
-    private Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
+    private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
     private Set<String> graphNames;
-    private RestHighLevelClient client;
-    private String elasticsearchIndexSettings;
+    private final RestHighLevelClient client;
+    private final String elasticsearchIndexSettings;
     private final static String settingsPath = "elasticsearchIndexSettings.json";
 
     /**
@@ -59,16 +59,23 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
 
         // Get all the graphs currently on this Elasticsearch cluster
         // and add them to the locally tracked set
-        GetIndexRequest request = new GetIndexRequest("_all");
+        this.graphNames = getExistingGraphNames();
+    }
 
+    private Set<String> getExistingGraphNames() {
         try {
+            GetIndexRequest request = new GetIndexRequest("_all");
             GetIndexResponse response = this.client.indices().get(request, RequestOptions.DEFAULT);
-            this.graphNames = new LinkedHashSet<String>();
-            this.graphNames.addAll(Arrays.asList(response.getIndices()));
+            Set<String> existingGraphNames = new LinkedHashSet<>();
+            existingGraphNames.addAll(Arrays.asList(response.getIndices()));
+            return existingGraphNames;
+        } catch (IOException e) {
+            this.logger.error("Could not retrieve existing graph names");
+            throw new RuntimeException(e);
         } catch (ElasticsearchStatusException e) {
             // no indices exist yet
             // Elasticsearch throws an exception when requesting to get all indices but none exist
-            this.graphNames = new LinkedHashSet<String>();
+            return new LinkedHashSet<>();
         }
     }
 
@@ -84,15 +91,11 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
     public Graph createGraph(String name, boolean strict) throws AlreadyExistsException {
         // Encode the given graph name into a name safe for Elasticsearch
         String validIndexName = encodeIndexName(name);
-        if (validIndexName.startsWith("_")) {
-            logger.error("Index name cannot begin with underscore");
-            return null;
-        }
 
         if (this.graphNames.contains(validIndexName)) {
             // there is already a graph with this name
             if (strict) {
-                logger.error("Cannot create graph '{}'; already exists", validIndexName);
+                this.logger.error("Cannot create graph '{}'; already exists", validIndexName);
                 throw new AlreadyExistsException("Graph '" + validIndexName + "' already exists");
             } else {
                 // return the associated graph
@@ -107,15 +110,15 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 this.client.indices().create(request, RequestOptions.DEFAULT);
 
                 this.graphNames.add(validIndexName);
-                logger.info("Created graph with name '{}'", validIndexName);
+                this.logger.info("Created graph with name '{}'", validIndexName);
 
                 // return the graph object
                 return new ElasticsearchGraph(this.client, validIndexName);
             } catch (Exception e) {
-                logger.error("Could not create index '{}'", validIndexName, e);
+                this.logger.error("Could not create index '{}'", validIndexName, e);
+                throw new RuntimeException(e);
             }
         }
-        return null;
     }
 
     /**
@@ -124,16 +127,12 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      * @param name   the name of the ElasticsearchGraph
      * @param strict if true, throw AlreadyExistsException a graph if a graph with the given name does not exist,
      *               instead of creating the graph
-     * @return
+     * @return a graph with the given name
      */
     @Override
     public Graph openGraph(String name, boolean strict) {
         // Elasticsearch only allows lowercase index names
         String validIndexName = encodeIndexName(name);
-        if (validIndexName.startsWith("_")) {
-            logger.error("Index name cannot begin with underscore");
-            return null;
-        }
 
         if (this.graphNames.contains(validIndexName)) {
             // there is already a graph with this name
@@ -143,7 +142,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             // there is no graph with this name yet
             if (strict) {
                 // throw an error instead of creating the graph
-                logger.error("Cannot open graph '{}'; does not exist", validIndexName);
+                this.logger.error("Cannot open graph '{}'; does not exist", validIndexName);
                 throw new DoesNotExistException("Graph '" + validIndexName + "' does not exist");
             } else {
                 // there is no graph with this name yet
@@ -154,16 +153,16 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                     this.client.indices().create(request, RequestOptions.DEFAULT);
 
                     this.graphNames.add(validIndexName);
-                    logger.info("Created graph with name '{}'", validIndexName);
+                    this.logger.info("Created graph with name '{}'", validIndexName);
 
                     // return the graph object
                     return new ElasticsearchGraph(this.client, validIndexName);
                 } catch (IOException e) {
-                    logger.error("Could not create index '{}'", validIndexName, e);
+                    this.logger.error("Could not create index '{}'", validIndexName, e);
+                    throw new RuntimeException(e);
                 }
             }
         }
-        return null;
     }
 
     /**
@@ -179,9 +178,10 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             DeleteIndexRequest request = new DeleteIndexRequest(validIndexName);
             this.client.indices().delete(request, RequestOptions.DEFAULT);
             this.graphNames.remove(validIndexName);
-            logger.info("Graph '" + validIndexName + "' removed");
+            this.logger.info("Graph '" + validIndexName + "' removed");
         } catch (IOException e) {
-            logger.error("Could not remove graph '{}'", name, e);
+            this.logger.error("Could not remove graph '{}'", name, e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -214,7 +214,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
      * - Must contain all lowercase characters
      *
      * @param graphName the string to transform into a safe index name
-     * @return
+     * @return a valid Elasticsearch index name, or _all
      */
     private String encodeIndexName(String graphName) {
         if (graphName.equals("_all")) {
