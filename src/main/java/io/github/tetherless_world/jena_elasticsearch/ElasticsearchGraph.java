@@ -6,6 +6,8 @@ import org.apache.jena.graph.Triple;
 import org.apache.jena.graph.impl.GraphBase;
 import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class ElasticsearchGraph extends GraphBase {
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
@@ -59,10 +62,44 @@ public class ElasticsearchGraph extends GraphBase {
         jsonMap.put("object", getNodeContent(t.getObject()));
 
         try {
-            IndexRequest request = new IndexRequest(this.name).source(jsonMap);
+            final IndexRequest request = new IndexRequest(this.name).source(jsonMap);
             this.client.index(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             logger.error("Error indexing triple: {}", t, e);
+        }
+
+        blockUntilAdded(t);
+    }
+
+    private void blockUntilAdded(Triple t) {
+        final RefreshRequest refreshRequest = new RefreshRequest(this.name);
+        final SearchRequest searchRequest = new SearchRequest();
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        searchSourceBuilder.query(this.constructExactTripleMatchingQuery(t));
+        searchRequest.indices(this.name);
+        searchRequest.source(searchSourceBuilder);
+
+        // Try 10 times to refresh Elasticsearch
+        for (int i=0; i<10; ++i) {
+            try {
+                SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
+                if (searchResponse.getHits().getHits().length != 0) {
+                    // contains the triple
+                    return;
+                }
+                RefreshResponse refreshResponse = client.indices().refresh(refreshRequest, RequestOptions.DEFAULT);
+            } catch (IOException e) {
+                this.logger.error("Error refreshing index for graph '{}'", this.name, e);
+            }
+
+            if (i>0) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    this.logger.error("Error waiting for retrying refresh request",e);
+                }
+            }
         }
     }
 
@@ -76,6 +113,40 @@ public class ElasticsearchGraph extends GraphBase {
             this.client.deleteByQuery(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             logger.error("Error deleting triple: {}", t, e);
+        }
+
+        this.blockUntilDeleted(t);
+    }
+
+    private void blockUntilDeleted(Triple t) {
+        final RefreshRequest refreshRequest = new RefreshRequest(this.name);
+        final SearchRequest searchRequest = new SearchRequest();
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        searchSourceBuilder.query(this.constructTripleMatchingQuery(t));
+        searchRequest.indices(this.name);
+        searchRequest.source(searchSourceBuilder);
+
+        // Try 10 times to refresh Elasticsearch
+        for (int i=0; i<10; ++i) {
+            try {
+                SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
+                if (searchResponse.getHits().getHits().length == 0) {
+                    // contains the triple
+                    return;
+                }
+                RefreshResponse refreshResponse = client.indices().refresh(refreshRequest, RequestOptions.DEFAULT);
+            } catch (IOException e) {
+                this.logger.error("Error refreshing index for graph '{}'", this.name, e);
+            }
+
+            if (i>0) {
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    this.logger.error("Error waiting for retrying refresh request",e);
+                }
+            }
         }
     }
 
@@ -138,6 +209,26 @@ public class ElasticsearchGraph extends GraphBase {
             // construct and return a MatchAllQueryBuilder
             return QueryBuilders.matchAllQuery();
         }
+        return queryBuilder;
+    }
+
+    /**
+     * Constructs a BoolQueryBuilder that matches the subject, predicate, and object of a given triple exactly
+     *
+     * @param triple the triple that the query must match
+     * @return a QueryBuilder that will match that triple
+     */
+    private QueryBuilder constructExactTripleMatchingQuery(Triple triple) {
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
+
+        TermQueryBuilder matchSubjectQueryBuilder = new TermQueryBuilder("subject", getNodeContent(triple.getSubject()));
+        TermQueryBuilder matchPredicateQueryBuilder = new TermQueryBuilder("predicate", getNodeContent(triple.getPredicate()));
+        TermQueryBuilder matchObjectQueryBuilder = new TermQueryBuilder("object", getNodeContent(triple.getObject()));
+
+        queryBuilder = queryBuilder.must(matchSubjectQueryBuilder);
+        queryBuilder = queryBuilder.must(matchPredicateQueryBuilder);
+        queryBuilder = queryBuilder.must(matchObjectQueryBuilder);
+
         return queryBuilder;
     }
 
