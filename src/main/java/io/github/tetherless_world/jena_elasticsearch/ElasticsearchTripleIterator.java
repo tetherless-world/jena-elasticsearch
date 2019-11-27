@@ -9,19 +9,16 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Iterator;
 
-public class ElasticsearchTripleIterator extends NiceIterator<Triple> {
-    private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
-    private Graph graph;
-    private Collection<Triple> collection;
-    private Iterator<Triple> iter;
+class ElasticsearchTripleIterator extends NiceIterator<Triple> {
+    private final static Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
+    private final Graph graph;
+    private final Collection<Triple> collection;
+    private final Iterator<Triple> iter;
 
-    public static ElasticsearchTripleIterator create(Collection<Triple> c, Graph g) {
-        ElasticsearchTripleIterator iterator = new ElasticsearchTripleIterator();
-        iterator.graph = g;
-        iterator.collection = c;
-        iterator.iter = c.iterator();
-
-        return iterator;
+    public ElasticsearchTripleIterator(Collection<Triple> c, Graph g) {
+        this.graph = g;
+        this.collection = c;
+        this.iter = this.collection.iterator();
     }
 
     @Override

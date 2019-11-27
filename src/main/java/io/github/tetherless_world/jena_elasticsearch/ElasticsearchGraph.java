@@ -184,7 +184,7 @@ public class ElasticsearchGraph extends GraphBase {
             }
 
             logger.info("Find {}; results: {}",triple.toString(),tripleResults.toString());
-            return ElasticsearchTripleIterator.create(tripleResults, this);
+            return  new ElasticsearchTripleIterator(tripleResults, this);
         } catch (IOException e) {
             logger.error("Search for triple {} failed", triple, e);
         }
@@ -275,7 +275,6 @@ public class ElasticsearchGraph extends GraphBase {
             return NodeFactory.createBlankNode(s);
         }
         if (s.startsWith("\"")) {
-            RDFDatatype datatype = getType(s);
             return NodeFactory.createLiteral(s);
         }
         return NodeFactory.createURI(s);
