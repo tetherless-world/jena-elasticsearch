@@ -1,5 +1,6 @@
 package io.github.tetherless_world.jena_elasticsearch;
 
+import org.apache.jena.datatypes.RDFDatatype;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
@@ -11,6 +12,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
@@ -30,7 +32,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+
+import static org.apache.jena.graph.NodeFactory.getType;
 
 public class ElasticsearchGraph extends GraphBase {
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
@@ -43,6 +46,7 @@ public class ElasticsearchGraph extends GraphBase {
     }
 
     private static String getNodeContent(Node n) {
+
         if (n.isBlank()) {
             return n.getBlankNodeLabel();
         } else if (n.isLiteral()) {
@@ -63,12 +67,13 @@ public class ElasticsearchGraph extends GraphBase {
 
         try {
             final IndexRequest request = new IndexRequest(this.name).source(jsonMap);
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             this.client.index(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             logger.error("Error indexing triple: {}", t, e);
         }
 
-        blockUntilAdded(t);
+        this.logger.info("Added triple {}; graph size = {}", t, this.graphBaseSize());
     }
 
     private void blockUntilAdded(Triple t) {
@@ -81,7 +86,7 @@ public class ElasticsearchGraph extends GraphBase {
         searchRequest.source(searchSourceBuilder);
 
         // Try 10 times to refresh Elasticsearch
-        for (int i=0; i<10; ++i) {
+        for (int i = 0; i < 10; ++i) {
             try {
                 SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
                 if (searchResponse.getHits().getHits().length != 0) {
@@ -93,11 +98,11 @@ public class ElasticsearchGraph extends GraphBase {
                 this.logger.error("Error refreshing index for graph '{}'", this.name, e);
             }
 
-            if (i>0) {
+            if (i > 0) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
-                    this.logger.error("Error waiting for retrying refresh request",e);
+                    this.logger.error("Error waiting for retrying refresh request", e);
                 }
             }
         }
@@ -107,15 +112,20 @@ public class ElasticsearchGraph extends GraphBase {
     public void performDelete(Triple t) {
         QueryBuilder queryBuilder = constructTripleMatchingQuery(t);
 
+        logger.debug("Deleting with query {}", queryBuilder.getWriteableName());
+
         try {
             DeleteByQueryRequest request = new DeleteByQueryRequest(this.name);
             request.setQuery(queryBuilder);
+            request.setRefresh(true);
             this.client.deleteByQuery(request, RequestOptions.DEFAULT);
+
         } catch (IOException e) {
             logger.error("Error deleting triple: {}", t, e);
         }
 
         this.blockUntilDeleted(t);
+        this.logger.info("Deleted triple {}; graph size = {}", t, this.graphBaseSize());
     }
 
     private void blockUntilDeleted(Triple t) {
@@ -128,7 +138,7 @@ public class ElasticsearchGraph extends GraphBase {
         searchRequest.source(searchSourceBuilder);
 
         // Try 10 times to refresh Elasticsearch
-        for (int i=0; i<10; ++i) {
+        for (int i = 0; i < 10; ++i) {
             try {
                 SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
                 if (searchResponse.getHits().getHits().length == 0) {
@@ -140,11 +150,11 @@ public class ElasticsearchGraph extends GraphBase {
                 this.logger.error("Error refreshing index for graph '{}'", this.name, e);
             }
 
-            if (i>0) {
+            if (i > 0) {
                 try {
                     Thread.sleep(100);
                 } catch (InterruptedException e) {
-                    this.logger.error("Error waiting for retrying refresh request",e);
+                    this.logger.error("Error waiting for retrying refresh request", e);
                 }
             }
         }
@@ -173,7 +183,8 @@ public class ElasticsearchGraph extends GraphBase {
                 tripleResults.add(Triple.create(createNode(s), createNode(p), createNode(o)));
             }
 
-            return WrappedIterator.create(tripleResults.iterator());
+            logger.info("Find {}; results: {}",triple.toString(),tripleResults.toString());
+            return ElasticsearchTripleIterator.create(tripleResults, this);
         } catch (IOException e) {
             logger.error("Search for triple {} failed", triple, e);
         }
@@ -264,6 +275,7 @@ public class ElasticsearchGraph extends GraphBase {
             return NodeFactory.createBlankNode(s);
         }
         if (s.startsWith("\"")) {
+            RDFDatatype datatype = getType(s);
             return NodeFactory.createLiteral(s);
         }
         return NodeFactory.createURI(s);
