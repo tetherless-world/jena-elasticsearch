@@ -7,7 +7,7 @@ jobs:
         name: elasticsearch
     steps:
       - checkout
-      - setup_remote_docker
+#      - setup_remote_docker
       - restore_cache:
           key: jena-elasticsearch-m2-{{ checksum "pom.xml" }}
       - run: mvn dependency:go-offline
@@ -15,9 +15,10 @@ jobs:
           paths:
             - ~/.m2
           key: jena-elasticsearch-m2-{{ checksum "pom.xml" }}
-      - run: rm -fr .m2 && cp -p -R ~/.m2 . && find .m2 | wc
-      - run: docker build -t jena-elasticsearch -f .circleci/Dockerfile .
-      - run: docker run --name jena-elasticsearch jena-elasticsearch bash -c "mvn package test && tail /dev/null"
-      - run: mkdir target && docker cp jena-elasticsearch:target/surefire-reports target/surefire-reports
+       - run: mvn package
+#      - run: rm -fr .m2 && cp -p -R ~/.m2 . && find .m2 | wc
+#      - run: docker build -t jena-elasticsearch -f .circleci/Dockerfile .
+#      - run: docker run --name jena-elasticsearch jena-elasticsearch bash -c "mvn package test && tail /dev/null"
+#      - run: mkdir target && docker cp jena-elasticsearch:target/surefire-reports target/surefire-reports
       - store_test_results:
           path: target/surefire-reports
