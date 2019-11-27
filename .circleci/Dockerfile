@@ -1,5 +1,6 @@
 FROM circleci/openjdk:8-jdk-stretch
 
+WORKDIR /home/circleci
 COPY /.m2 .
 RUN find . /home/circleci/.m2 | wc
 
