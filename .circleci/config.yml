@@ -13,6 +13,8 @@ jobs:
           - http.port: 9200
           - discovery.type: single-node
     steps:
+      # Wait for ElasticSearch to come up
+      - run: sleep 10
       - checkout
 #      - setup_remote_docker
       - restore_cache:
