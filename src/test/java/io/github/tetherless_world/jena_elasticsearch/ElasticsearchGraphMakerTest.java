@@ -19,7 +19,7 @@ public class ElasticsearchGraphMakerTest extends AbstractTestGraphMaker {
         try {
             // Initialize the GraphMaker
             this.gf = new ElasticsearchGraphMaker(
-                    new HttpHost("localhost", 9200, "http")
+                    new HttpHost("elasticsearch", 9200, "http")
             );
 
             // Create and return the graphmaker

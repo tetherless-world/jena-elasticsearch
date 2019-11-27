@@ -24,7 +24,7 @@ public class ElasticsearchGraphTest extends AbstractTestGraph {
         try {
             // Initialize the GraphMaker
             graphMaker = new ElasticsearchGraphMaker(
-                    new HttpHost("localhost", 9200, "http")
+                    new HttpHost("elasticsearch", 9200, "http")
             );
 
             // Generate a random name for a new graph (to avoid name collisions between sequent test runs)
