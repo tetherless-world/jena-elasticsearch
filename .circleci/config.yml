@@ -18,6 +18,6 @@ jobs:
       - run: rm -fr .m2 && cp -p -R ~/.m2 . && find .m2 | wc
       - run: docker build -t jena-elasticsearch -f .circleci/Dockerfile .
       - run: docker run --name jena-elasticsearch jena-elasticsearch bash -c "mvn package test && tail /dev/null"
-      - run: mkdir target && docker cp jena-elasticsearch:target/surefire-reports target
+      - run: mkdir target && docker cp jena-elasticsearch:target/surefire-reports target/surefire-reports
       - store_test_results:
           path: target/surefire-reports
