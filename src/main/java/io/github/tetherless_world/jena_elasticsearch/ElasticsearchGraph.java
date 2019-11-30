@@ -1,6 +1,5 @@
 package io.github.tetherless_world.jena_elasticsearch;
 
-import org.apache.jena.datatypes.RDFDatatype;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
@@ -33,8 +32,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.apache.jena.graph.NodeFactory.getType;
-
 public class ElasticsearchGraph extends GraphBase {
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
     private final RestHighLevelClient client;
@@ -48,7 +45,7 @@ public class ElasticsearchGraph extends GraphBase {
     private static String getNodeContent(Node n) {
 
         if (n.isBlank()) {
-            return n.getBlankNodeLabel();
+            return "_:" + n.getBlankNodeLabel();
         } else if (n.isLiteral()) {
             return n.getLiteral().toString();
         } else if (n.isURI()) {
@@ -73,7 +70,7 @@ public class ElasticsearchGraph extends GraphBase {
             logger.error("Error indexing triple: {}", t, e);
         }
 
-        this.logger.info("Added triple {}; graph size = {}", t, this.graphBaseSize());
+        this.logger.debug("Added triple {}; graph size = {}", t, this.graphBaseSize());
     }
 
     private void blockUntilAdded(Triple t) {
@@ -125,7 +122,7 @@ public class ElasticsearchGraph extends GraphBase {
         }
 
         this.blockUntilDeleted(t);
-        this.logger.info("Deleted triple {}; graph size = {}", t, this.graphBaseSize());
+        this.logger.debug("Deleted triple {}; graph size = {}", t, this.graphBaseSize());
     }
 
     private void blockUntilDeleted(Triple t) {
@@ -183,8 +180,8 @@ public class ElasticsearchGraph extends GraphBase {
                 tripleResults.add(Triple.create(createNode(s), createNode(p), createNode(o)));
             }
 
-            logger.info("Find {}; results: {}",triple.toString(),tripleResults.toString());
-            return  new ElasticsearchTripleIterator(tripleResults, this);
+            logger.debug("Find {}; results: {}", triple.toString(), tripleResults.toString());
+            return new ElasticsearchTripleIterator(tripleResults, this);
         } catch (IOException e) {
             logger.error("Search for triple {} failed", triple, e);
         }
@@ -272,7 +269,7 @@ public class ElasticsearchGraph extends GraphBase {
      */
     private static Node createNode(String s) {
         if (s.startsWith("_:")) {
-            return NodeFactory.createBlankNode(s);
+            return NodeFactory.createBlankNode(s.substring(2));
         }
         if (s.startsWith("\"")) {
             return NodeFactory.createLiteral(s);

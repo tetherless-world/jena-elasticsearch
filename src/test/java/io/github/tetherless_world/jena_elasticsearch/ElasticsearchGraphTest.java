@@ -5,7 +5,6 @@ import org.apache.http.HttpHost;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.test.AbstractTestGraph;
 
-import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Random;
 
