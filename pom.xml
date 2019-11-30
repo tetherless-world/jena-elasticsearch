@@ -59,6 +59,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.jena</groupId>
+            <artifactId>jena-fuseki-main</artifactId>
+            <version>3.13.1</version>
+        </dependency>
+
     </dependencies>
 
     <properties>

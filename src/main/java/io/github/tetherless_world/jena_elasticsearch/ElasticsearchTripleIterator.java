@@ -23,12 +23,10 @@ class ElasticsearchTripleIterator extends NiceIterator<Triple> {
 
     @Override
     public void remove() {
-        logger.info("ElasticsearchTripleIterator.remove: {}",this.iter.toString());
-        logger.info("Remove called; entire contents of collection: {}",this.collection);
         if (this.iter.hasNext()) {
             this.graph.delete(this.iter.next());
         } else {
-            logger.info("No such element but remove called: Iterator={}, collection={}",this.iter,this.collection);
+            logger.debug("No such element but remove called on iterator: collection={}",this.collection);
             throw new UnsupportedOperationException();
         }
     }
