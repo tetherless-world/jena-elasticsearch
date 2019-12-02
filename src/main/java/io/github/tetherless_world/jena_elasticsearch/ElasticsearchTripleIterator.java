@@ -14,6 +14,7 @@ class ElasticsearchTripleIterator extends NiceIterator<Triple> {
     private final Graph graph;
     private final Collection<Triple> collection;
     private final Iterator<Triple> iter;
+    private Triple curr = null;
 
     public ElasticsearchTripleIterator(Collection<Triple> c, Graph g) {
         this.graph = g;
@@ -23,8 +24,8 @@ class ElasticsearchTripleIterator extends NiceIterator<Triple> {
 
     @Override
     public void remove() {
-        if (this.iter.hasNext()) {
-            this.graph.delete(this.iter.next());
+        if (this.curr != null) {
+            this.graph.delete(this.curr);
         } else {
             logger.debug("No such element but remove called on iterator: collection={}",this.collection);
             throw new UnsupportedOperationException();
@@ -33,7 +34,8 @@ class ElasticsearchTripleIterator extends NiceIterator<Triple> {
 
     @Override
     public Triple next() {
-        return this.iter.next();
+        this.curr = this.iter.next();
+        return this.curr;
     }
 
     @Override

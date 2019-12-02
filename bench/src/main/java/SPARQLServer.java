@@ -1,5 +1,6 @@
-package io.github.tetherless_world.jena_elasticsearch;
 
+
+import io.github.tetherless_world.jena_elasticsearch.ElasticsearchGraphMaker;
 import org.apache.http.HttpHost;
 import org.apache.jena.fuseki.main.FusekiServer;
 import org.apache.jena.graph.Graph;
