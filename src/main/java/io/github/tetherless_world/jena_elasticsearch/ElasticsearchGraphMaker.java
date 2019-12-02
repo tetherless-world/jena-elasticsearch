@@ -31,11 +31,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class ElasticsearchGraphMaker extends BaseGraphMaker {
+    private final static String settingsPath = "elasticsearchIndexSettings.json";
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
-    private Set<String> graphNames;
     private final RestHighLevelClient client;
     private final String elasticsearchIndexSettings;
-    private final static String settingsPath = "elasticsearchIndexSettings.json";
+    private Set<String> graphNames;
 
     /**
      * Constructor for ElasticsearchGraphMaker
@@ -110,7 +110,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 this.client.indices().create(request, RequestOptions.DEFAULT);
 
                 this.graphNames.add(validIndexName);
-                this.logger.info("Created graph with name '{}'", validIndexName);
+                this.logger.debug("Created graph with name '{}'", validIndexName);
 
                 // return the graph object
                 return new ElasticsearchGraph(this.client, validIndexName);
@@ -153,7 +153,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                     this.client.indices().create(request, RequestOptions.DEFAULT);
 
                     this.graphNames.add(validIndexName);
-                    this.logger.info("Created graph with name '{}'", validIndexName);
+                    this.logger.debug("Created graph with name '{}'", validIndexName);
 
                     // return the graph object
                     return new ElasticsearchGraph(this.client, validIndexName);
@@ -178,7 +178,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             DeleteIndexRequest request = new DeleteIndexRequest(validIndexName);
             this.client.indices().delete(request, RequestOptions.DEFAULT);
             this.graphNames.remove(validIndexName);
-            this.logger.info("Graph '" + validIndexName + "' removed");
+            this.logger.debug("Graph '" + validIndexName + "' removed");
         } catch (IOException e) {
             this.logger.error("Could not remove graph '{}'", name, e);
             throw new RuntimeException(e);

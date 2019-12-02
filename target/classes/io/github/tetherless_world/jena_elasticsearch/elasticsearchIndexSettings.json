@@ -1,9 +1,0 @@
-{
-  "mappings": {
-    "properties": {
-      "subject": { "type": "keyword" },
-      "predicate": { "type": "keyword" },
-      "object": { "type": "keyword" }
-    }
-  }
-}
