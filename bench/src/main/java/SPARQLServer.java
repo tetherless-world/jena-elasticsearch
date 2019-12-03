@@ -1,6 +1,7 @@
 import io.github.tetherless_world.jena_elasticsearch.ElasticsearchGraphMaker;
 import org.apache.http.HttpHost;
 import org.apache.jena.fuseki.main.FusekiServer;
+import org.apache.jena.fuseki.system.FusekiLogging;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.DatasetFactory;
@@ -16,6 +17,8 @@ public class SPARQLServer {
     private static FusekiServer server = null;
 
     public static void main(String args[]) {
+        FusekiLogging.setLogging();
+
         try {
             Graph g = new ElasticsearchGraphMaker(
                     new HttpHost("elasticsearch", 9200, "http")
