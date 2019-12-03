@@ -1,4 +1,4 @@
-
+package main;
 
 import io.github.tetherless_world.jena_elasticsearch.ElasticsearchGraphMaker;
 import org.apache.http.HttpHost;
