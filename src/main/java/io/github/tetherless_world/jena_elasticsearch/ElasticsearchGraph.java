@@ -49,7 +49,7 @@ public class ElasticsearchGraph extends GraphBase {
         if (n.isBlank()) {
             return "_:" + n.getBlankNodeLabel();
         } else if (n.isLiteral()) {
-            return n.getLiteral().toString();
+            return "L:" + n.getLiteral().toString();
         } else if (n.isURI()) {
             return n.getURI();
         } else {
@@ -284,8 +284,8 @@ public class ElasticsearchGraph extends GraphBase {
         if (s.startsWith("_:")) {
             return NodeFactory.createBlankNode(s.substring(2));
         }
-        if (s.startsWith("\"")) {
-            return NodeFactory.createLiteral(s);
+        if (s.startsWith("L:")) {
+            return NodeFactory.createLiteral(s.substring(2));
         }
         return NodeFactory.createURI(s);
     }
