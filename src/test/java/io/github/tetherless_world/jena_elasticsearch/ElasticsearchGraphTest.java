@@ -22,9 +22,11 @@ public class ElasticsearchGraphTest extends AbstractTestGraph {
         ElasticsearchGraphMaker graphMaker;
         try {
             // Initialize the GraphMaker
-            graphMaker = new ElasticsearchGraphMaker(
+            ElasticsearchGraphMakerConfiguration config = new ElasticsearchGraphMakerConfiguration(
+                    ElasticsearchGraphMakerConfiguration.SyncType.SYNCHRONOUS,
                     new HttpHost("elasticsearch", 9200, "http")
             );
+            graphMaker = new ElasticsearchGraphMaker(config);
 
             // Generate a random name for a new graph (to avoid name collisions between sequent test runs)
             byte[] array = new byte[10];

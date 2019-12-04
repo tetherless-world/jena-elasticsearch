@@ -2,6 +2,7 @@ package io.github.tetherless_world.jena_elasticsearch;
 
 import org.apache.commons.codec.binary.Base32;
 import org.apache.http.HttpHost;
+import org.apache.jena.atlas.lib.Sync;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.impl.BaseGraphMaker;
 import org.apache.jena.shared.AlreadyExistsException;
@@ -30,20 +31,22 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+
 public class ElasticsearchGraphMaker extends BaseGraphMaker {
     private final static String settingsPath = "elasticsearchIndexSettings.json";
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
     private final RestHighLevelClient client;
     private final String elasticsearchIndexSettings;
     private Set<String> graphNames;
+    private final ElasticsearchGraphMakerConfiguration.SyncType syncType;
 
     /**
      * Constructor for ElasticsearchGraphMaker
      *
-     * @param httpHosts Elasticsearch nodes in the cluster
+     * @param config a configuration object for this GraphMaker containing HttpHosts and the SyncType
      * @throws IOException
      */
-    public ElasticsearchGraphMaker(HttpHost... httpHosts) throws IOException {
+    public ElasticsearchGraphMaker(ElasticsearchGraphMakerConfiguration config) throws IOException {
         // Read the Elasticsearch index settings from the settings resource file
         InputStream inputStream = getClass().getResourceAsStream(this.settingsPath);
         StringBuilder resultStringBuilder = new StringBuilder();
@@ -55,11 +58,13 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         this.elasticsearchIndexSettings = resultStringBuilder.toString();
 
         // Construct the high-level ES REST client
-        this.client = new RestHighLevelClient(RestClient.builder(httpHosts));
+        this.client = new RestHighLevelClient(RestClient.builder(config.hosts));
 
         // Get all the graphs currently on this Elasticsearch cluster
         // and add them to the locally tracked set
         this.graphNames = getExistingGraphNames();
+
+        this.syncType = config.syncType;
     }
 
     private Set<String> getExistingGraphNames() {
@@ -99,7 +104,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 throw new AlreadyExistsException("Graph '" + validIndexName + "' already exists");
             } else {
                 // return the associated graph
-                return new ElasticsearchGraph(this.client, validIndexName);
+                return new ElasticsearchGraph(this.client, validIndexName, this.syncType);
             }
         } else {
             try {
@@ -113,7 +118,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 this.logger.debug("Created graph with name '{}'", validIndexName);
 
                 // return the graph object
-                return new ElasticsearchGraph(this.client, validIndexName);
+                return new ElasticsearchGraph(this.client, validIndexName, this.syncType);
             } catch (Exception e) {
                 this.logger.error("Could not create index '{}'", validIndexName, e);
                 throw new RuntimeException(e);
@@ -137,7 +142,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         if (this.graphNames.contains(validIndexName)) {
             // there is already a graph with this name
             // return the associated graph
-            return new ElasticsearchGraph(this.client, validIndexName);
+            return new ElasticsearchGraph(this.client, validIndexName, this.syncType);
         } else {
             // there is no graph with this name yet
             if (strict) {
@@ -156,7 +161,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                     this.logger.debug("Created graph with name '{}'", validIndexName);
 
                     // return the graph object
-                    return new ElasticsearchGraph(this.client, validIndexName);
+                    return new ElasticsearchGraph(this.client, validIndexName, this.syncType);
                 } catch (IOException e) {
                     this.logger.error("Could not create index '{}'", validIndexName, e);
                     throw new RuntimeException(e);

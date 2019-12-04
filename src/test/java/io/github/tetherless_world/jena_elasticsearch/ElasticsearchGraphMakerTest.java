@@ -18,9 +18,11 @@ public class ElasticsearchGraphMakerTest extends AbstractTestGraphMaker {
     public GraphMaker getGraphMaker() {
         try {
             // Initialize the GraphMaker
-            this.gf = new ElasticsearchGraphMaker(
+            ElasticsearchGraphMakerConfiguration config = new ElasticsearchGraphMakerConfiguration(
+                    ElasticsearchGraphMakerConfiguration.SyncType.SYNCHRONOUS,
                     new HttpHost("elasticsearch", 9200, "http")
             );
+            this.gf = new ElasticsearchGraphMaker(config);
 
             // Create and return the graphmaker
             return this.gf;

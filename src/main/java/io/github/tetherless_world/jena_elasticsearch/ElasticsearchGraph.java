@@ -36,10 +36,12 @@ public class ElasticsearchGraph extends GraphBase {
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
     private final RestHighLevelClient client;
     private final String name;
+    private final ElasticsearchGraphMakerConfiguration.SyncType syncType;
 
-    public ElasticsearchGraph(RestHighLevelClient aClient, String aName) {
+    public ElasticsearchGraph(RestHighLevelClient aClient, String aName, ElasticsearchGraphMakerConfiguration.SyncType st) {
         this.client = aClient;
         this.name = aName;
+        this.syncType = st;
     }
 
     private static String getNodeContent(Node n) {
@@ -64,7 +66,10 @@ public class ElasticsearchGraph extends GraphBase {
 
         try {
             final IndexRequest request = new IndexRequest(this.name).source(jsonMap);
-            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            if (this.syncType.equals(ElasticsearchGraphMakerConfiguration.SyncType.SYNCHRONOUS)) {
+                // if this is a synchronous graph, wait for the triple to be added
+                request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            }
             this.client.index(request, RequestOptions.DEFAULT);
         } catch (IOException e) {
             logger.error("Error indexing triple: {}", t, e);
@@ -114,14 +119,22 @@ public class ElasticsearchGraph extends GraphBase {
         try {
             DeleteByQueryRequest request = new DeleteByQueryRequest(this.name);
             request.setQuery(queryBuilder);
-            request.setRefresh(true);
+            if (this.syncType.equals(ElasticsearchGraphMakerConfiguration.SyncType.SYNCHRONOUS)) {
+                // if this is a synchronous graph, request a refresh
+                request.setRefresh(true);
+            }
+
             this.client.deleteByQuery(request, RequestOptions.DEFAULT);
 
         } catch (IOException e) {
             logger.error("Error deleting triple: {}", t, e);
         }
 
-        this.blockUntilDeleted(t);
+        if (this.syncType.equals(ElasticsearchGraphMakerConfiguration.SyncType.SYNCHRONOUS)) {
+            // if this is a synchronous graph, wait for the triple to be added
+            this.blockUntilDeleted(t);
+        }
+
         this.logger.debug("Deleted triple {}; graph size = {}", t, this.graphBaseSize());
     }
 
