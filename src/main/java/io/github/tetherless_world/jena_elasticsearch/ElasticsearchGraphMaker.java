@@ -11,6 +11,7 @@ import org.apache.jena.util.iterator.ExtendedIterator;
 import org.apache.jena.util.iterator.WrappedIterator;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -56,7 +57,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             resultStringBuilder.append(line).append("\n");
         }
         this.elasticsearchIndexSettings = resultStringBuilder.toString();
-
+        logger.info("Elasticsearch index settings: {}",this.elasticsearchIndexSettings);
         // Construct the high-level ES REST client
         this.client = new RestHighLevelClient(RestClient.builder(config.hosts));
 
@@ -112,6 +113,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 // create the index for this graph
                 CreateIndexRequest request = new CreateIndexRequest(validIndexName);
                 request.source(this.elasticsearchIndexSettings, XContentType.JSON);
+                request.waitForActiveShards(ActiveShardCount.from(1));
                 this.client.indices().create(request, RequestOptions.DEFAULT);
 
                 this.graphNames.add(validIndexName);
@@ -155,7 +157,9 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
                 try {
                     CreateIndexRequest request = new CreateIndexRequest(validIndexName);
                     request.source(this.elasticsearchIndexSettings, XContentType.JSON);
+                    request.waitForActiveShards(ActiveShardCount.from(1));
                     this.client.indices().create(request, RequestOptions.DEFAULT);
+
 
                     this.graphNames.add(validIndexName);
                     this.logger.debug("Created graph with name '{}'", validIndexName);
@@ -182,11 +186,36 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         try {
             DeleteIndexRequest request = new DeleteIndexRequest(validIndexName);
             this.client.indices().delete(request, RequestOptions.DEFAULT);
-            this.graphNames.remove(validIndexName);
+            if (name.equals("_all")) {
+                this.graphNames.clear();
+            } else {
+                this.graphNames.remove(validIndexName);
+            }
             this.logger.debug("Graph '" + validIndexName + "' removed");
         } catch (IOException e) {
             this.logger.error("Could not remove graph '{}'", name, e);
             throw new RuntimeException(e);
+        }
+    }
+
+    private void blockUntilGraphRemoved(String name) {
+        String validIndexName = encodeIndexName(name);
+        boolean bContinue = true;
+
+        while (bContinue) {
+            try {
+                GetIndexRequest request = new GetIndexRequest(validIndexName);
+                this.client.indices().get(request, RequestOptions.DEFAULT);
+
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    this.logger.error("Error waiting for retrying get index request", e);
+                }
+            } catch (IOException e) {
+                this.logger.error("Could not remove graph '{}'", name, e);
+                throw new RuntimeException(e);
+            }
         }
     }
 
