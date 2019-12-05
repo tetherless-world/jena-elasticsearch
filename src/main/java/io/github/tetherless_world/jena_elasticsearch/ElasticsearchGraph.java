@@ -178,7 +178,7 @@ public class ElasticsearchGraph extends GraphBase {
         final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(this.constructTripleMatchingQuery(triple));
-        searchSourceBuilder.size(100); // receive up to 100 hits per call
+        searchSourceBuilder.size(10000); // receive up to 10,000 hits per call (10K=max_result_window)
 
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(this.name);
@@ -201,7 +201,7 @@ public class ElasticsearchGraph extends GraphBase {
                 tripleResults.add(Triple.create(createNode(s), createNode(p), createNode(o)));
             }
 
-            while (searchHits != null && searchHits.length > 0) {
+/*            while (searchHits != null && searchHits.length > 0) {
                 SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
                 scrollRequest.scroll(scroll);
                 searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
@@ -225,7 +225,7 @@ public class ElasticsearchGraph extends GraphBase {
             if (!clearScrollResponse.isSucceeded()) {
                 logger.error("Could not clear scroll {} from Elasticsearch",scrollId);
                 throw new IOException("Could not clear scroll "+scrollId);
-            }
+            }*/
 
             logger.debug("Find {}; results: {}", triple.toString(), tripleResults.toString());
             return new ElasticsearchTripleIterator(tripleResults, this);
