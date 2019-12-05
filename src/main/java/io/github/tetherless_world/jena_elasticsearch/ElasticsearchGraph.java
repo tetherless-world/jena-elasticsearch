@@ -175,7 +175,7 @@ public class ElasticsearchGraph extends GraphBase {
     protected ExtendedIterator<Triple> graphBaseFind(Triple triple) {
         logger.debug("Called graphBaseFind for triple {}", triple);
 
-        final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
+        //final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.query(this.constructTripleMatchingQuery(triple));
         searchSourceBuilder.size(10000); // receive up to 10,000 hits per call (10K=max_result_window)
@@ -183,7 +183,7 @@ public class ElasticsearchGraph extends GraphBase {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(this.name);
         searchRequest.source(searchSourceBuilder);
-        searchRequest.scroll(scroll);
+        //searchRequest.scroll(scroll);
 
         try {
             SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
