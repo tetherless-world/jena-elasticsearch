@@ -1,8 +1,6 @@
 package io.github.tetherless_world.jena_elasticsearch;
 
 import org.apache.commons.codec.binary.Base32;
-import org.apache.http.HttpHost;
-import org.apache.jena.atlas.lib.Sync;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.impl.BaseGraphMaker;
 import org.apache.jena.shared.AlreadyExistsException;
@@ -32,7 +30,15 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-
+/**
+ * A factory for creating instances of ElasticsearchGraph. Must be configured
+ * with an ElasticsearchGraphMakerConfiguration, which defines the HttpHosts and
+ * SyncType for the graphs created by this factory.
+ * For a given Elasticsearch instance, the ElasticsearchGraphMaker will treat
+ * all indices in the current instance as graphs and obtain their names upon
+ * initializing the ElasticsearchGraphMaker, allowing persistent graphs between
+ * different ElasticsearchGraphMaker instances.
+ */
 public class ElasticsearchGraphMaker extends BaseGraphMaker {
     private final static String settingsPath = "elasticsearchIndexSettings.json";
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraphMaker.class);
@@ -57,7 +63,7 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
             resultStringBuilder.append(line).append("\n");
         }
         this.elasticsearchIndexSettings = resultStringBuilder.toString();
-        logger.info("Elasticsearch index settings: {}",this.elasticsearchIndexSettings);
+        logger.info("Elasticsearch index settings: {}", this.elasticsearchIndexSettings);
         // Construct the high-level ES REST client
         this.client = new RestHighLevelClient(RestClient.builder(config.hosts));
 
@@ -198,27 +204,6 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
         }
     }
 
-    private void blockUntilGraphRemoved(String name) {
-        String validIndexName = encodeIndexName(name);
-        boolean bContinue = true;
-
-        while (bContinue) {
-            try {
-                GetIndexRequest request = new GetIndexRequest(validIndexName);
-                this.client.indices().get(request, RequestOptions.DEFAULT);
-
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    this.logger.error("Error waiting for retrying get index request", e);
-                }
-            } catch (IOException e) {
-                this.logger.error("Could not remove graph '{}'", name, e);
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
     @Override
     public boolean hasGraph(String name) {
         return this.graphNames.contains(encodeIndexName(name));
@@ -229,6 +214,11 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
 
     }
 
+    /**
+     * Return an iterator over a list of graphs that have been created
+     *
+     * @return an ExtendedIterator over the String graph names
+     */
     @Override
     public ExtendedIterator<String> listGraphs() {
         // Make a list of the decoded index names (i.e. a list of graph names)
@@ -240,7 +230,8 @@ public class ElasticsearchGraphMaker extends BaseGraphMaker {
     }
 
     /**
-     * Given a string, transform it so that it can be used as an index name in Elasticsearch. I.e.:
+     * Given a string, transform it so that it can be used as an index name in
+     * Elasticsearch. I.e.:
      * - Cannot begin with _, -, or +
      * - Cannot contain characters [ , \", *, \\, <, |, ,, >, /, ?, :, #]
      * - Cannot exceed 255 characters

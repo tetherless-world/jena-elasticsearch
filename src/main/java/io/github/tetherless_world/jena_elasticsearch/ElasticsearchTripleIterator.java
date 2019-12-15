@@ -9,6 +9,9 @@ import org.slf4j.LoggerFactory;
 import java.util.Collection;
 import java.util.Iterator;
 
+/**
+ * An iterator over results returned by Elasticsearch.
+ */
 class ElasticsearchTripleIterator extends NiceIterator<Triple> {
     private final static Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
     private final Graph graph;

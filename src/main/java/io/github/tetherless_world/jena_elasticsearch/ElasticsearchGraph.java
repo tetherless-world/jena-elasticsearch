@@ -9,19 +9,18 @@ import org.apache.jena.util.iterator.WrappedIterator;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.slf4j.Logger;
@@ -33,6 +32,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A Graph backed by an Elasticsearch instance. An ElasticsearchGraph is created
+ * using the factory ElasticsearchGraphMaker.
+ */
 public class ElasticsearchGraph extends GraphBase {
     private final Logger logger = LoggerFactory.getLogger(ElasticsearchGraph.class);
     private final RestHighLevelClient client;
@@ -200,32 +203,6 @@ public class ElasticsearchGraph extends GraphBase {
 
                 tripleResults.add(Triple.create(createNode(s), createNode(p), createNode(o)));
             }
-
-/*            while (searchHits != null && searchHits.length > 0) {
-                SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId);
-                scrollRequest.scroll(scroll);
-                searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
-                scrollId = searchResponse.getScrollId();
-                searchHits = searchResponse.getHits().getHits();
-
-                for (SearchHit hit : searchHits) {
-                    logger.debug("Hit: {}", hit.getSourceAsMap());
-                    Map<String, Object> fields = hit.getSourceAsMap();
-                    String s = (String) fields.get("subject");
-                    String p = (String) fields.get("predicate");
-                    String o = (String) fields.get("object");
-
-                    tripleResults.add(Triple.create(createNode(s), createNode(p), createNode(o)));
-                }
-            }
-
-            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-            clearScrollRequest.addScrollId(scrollId);
-            ClearScrollResponse clearScrollResponse = this.client.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
-            if (!clearScrollResponse.isSucceeded()) {
-                logger.error("Could not clear scroll {} from Elasticsearch",scrollId);
-                throw new IOException("Could not clear scroll "+scrollId);
-            }*/
 
             logger.debug("Find {}; results: {}", triple.toString(), tripleResults.toString());
             return new ElasticsearchTripleIterator(tripleResults, this);
