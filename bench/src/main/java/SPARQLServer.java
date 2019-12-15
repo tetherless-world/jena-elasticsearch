@@ -27,6 +27,7 @@ public class SPARQLServer {
         try {
             Dataset ds;
             Model m;
+
             if (args[0].equals("elasticsearch-persistent")) {
                 logger.info("Creating persistent Elasticsearch graph");
 
@@ -69,9 +70,6 @@ public class SPARQLServer {
             } else {
                 logger.info("No files loaded");
             }
-
-            // Create dataset from model
-            //Dataset ds = DatasetFactory.wrap(m);
 
             // Build and start the server
             server = FusekiServer.create()

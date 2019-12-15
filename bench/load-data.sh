@@ -2,4 +2,4 @@
 
 cd "$(dirname "$0")"
 
-java -jar ../../twks/java/dist/twks-cli-current.jar post-nanopublications bsbmtools-0.2/dataset.nt
+java -jar target/sparql-server-1.0.0.jar elasticsearch-persistent bsbmtools-0.2/dataset.nt
