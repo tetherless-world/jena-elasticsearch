@@ -17,13 +17,15 @@ To build jena-elasticsearch, run `mvn install` in the root directory.
 # [Berlin SPARQL Benchmark](http://wifo5-03.informatik.uni-mannheim.de/bizer/berlinsparqlbenchmark/)
 
 The Berlin SPARQL Benchmark (BSBM) was used to evaluate the triple store performance. Because BSBM runs against a SPARQL endpoint, an Apache Fuseki server using an Elasticsearch-backed graph was implemented. The Fuseki server can also be run with a TDB2 datastore (either persistent or in-memory), used to compare benchmarks against the Elasticsearch datastore.
-To build the Fuseki server, run `mvn build` in the `bench` directory.
+To build the Fuseki server, run `mvn package` in the `bench` directory.
 
 Ensure that Elasticsearch is running on port 9200 (default). The Fuseki server can be started by running
 ```java -jar target/[jar_filename.jar] [triplestore] [dataset]```
 where [jar_filename.txt] is the Java archive from Maven, [triplestore] is either `elasticsearch-persistent`, `tdb2-memory`, or `tdb2-persistent`, and `dataset` is the filename of the BSBM dataset.
 
-1. (One time) Generate data: run `./generate` in the `bsbmtools-0.2` directory
+1. (One time) Generate data: run `generate-data.sh` in the current directory
 1. Start Elasticsearch
-1. Start the jena-elasticsearch Fuseki server: `java -jar target/sparql-server-xxx.jar [dataset.nt]`
+1. Build the Fuseki server: `mvn package`
+1. Start the jena-elasticsearch Fuseki server: `load-data.sh [datastore]`
+where [jar_filename.txt] is the Java archive from Maven, [triplestore] is either `elasticsearch-persistent`, `tdb2-memory`, or `tdb2-persistent`.
 1. Run the benchmark: run `rn.sh` in the current directory
